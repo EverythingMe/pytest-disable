@@ -1,6 +1,6 @@
-from _pytest.config import ArgumentError
+import os
 import pytest
-import sys
+from _pytest.config import ArgumentError
 
 
 class PluginDisable(object):
@@ -25,10 +25,12 @@ class PluginDisable(object):
                         'reason': item.get_marker('disable').kwargs['reason']
                     })
 
+            disabled_count = len(disabled)
+            os.environ['DISABLED_TESTS'] = str(disabled_count)
             for disabled_test in disabled:
                 print '{} -> {} => {}'.format(disabled_test['name'], disabled_test['path'], disabled_test['reason'])
 
-            print '-=-=-=-=-=-=-=-'
+            print '============================ Found {} disabled tests ============================'.format(disabled_count)
 
 
 def pytest_addoption(parser):
