@@ -6,10 +6,10 @@ from _pytest.config import ArgumentError
 class PluginDisable(object):
     def pytest_itemcollected(self, item):
         if item.get_marker('disable'):
-            if not 'reason' in item.get_marker('disable').kwargs:
+            if 'reason' not in item.get_marker('disable').kwargs:
                 raise ArgumentError('Disable must recieve a reason argument', self)
 
-            item.add_marker(pytest.mark.skipif(True, reason=item.get_marker('disable').kwargs['reason']))
+            item.add_marker(pytest.mark.skipif(True, reason=item.get_marker('disable').kwargs.get('reason')))
 
     def pytest_collection_modifyitems(self, session, config, items):
         if config.option.report_disabled:
@@ -22,15 +22,20 @@ class PluginDisable(object):
                     disabled.append({
                         'path': item.parent.nodeid.replace('::()', ''),
                         'name': item.name,
-                        'reason': item.get_marker('disable').kwargs['reason']
+                        'reason': item.get_marker('disable').kwargs.get('reason')
                     })
 
-            disabled_count = len(disabled)
-            os.environ['DISABLED_TESTS'] = str(disabled_count)
+            f = open(config.option.disabled_report_file, 'w')
             for disabled_test in disabled:
-                print '{} -> {} => {}'.format(disabled_test['name'], disabled_test['path'], disabled_test['reason'])
+                line = '{} -> {} => {}'.format(disabled_test['name'], disabled_test['path'], disabled_test['reason'])
+                print line
+                f.write(line + '\n')
 
-            print '============================ Found {} disabled tests ============================'.format(disabled_count)
+            summary = '============================ Found {} disabled tests ============================'.format(
+                len(disabled))
+            print summary
+            f.write('\n'+summary)
+            f.close()
 
 
 def pytest_addoption(parser):
@@ -40,6 +45,10 @@ def pytest_addoption(parser):
         '--report-disabled', action="store_true",
         dest="report_disabled", default=False,
         help="report disabled tests")
+    group.addoption(
+        '--disabled-report-file', dest="disabled_report_file",
+        default='/tmp/disabled_report.txt',
+        help="disabled tests report file")
 
 
 def pytest_configure(config):
@@ -53,4 +62,9 @@ def pytest_configure(config):
     config.pluginmanager.register(PluginDisable())
 
     if config.option.report_disabled:
+        # Set pytest to only collect tests and not run them
         config.option.collectonly = True
+
+        report_file_dir = os.path.dirname(config.option.disabled_report_file)
+        if not os.path.isdir(report_file_dir):
+            os.makedirs(report_file_dir)
